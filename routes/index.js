@@ -10,30 +10,49 @@ router.get('/', function(req, res, next) {
 
 router.get('/image/:id', function(req, res) {
 	
-	// r.table('results').filter({ crossRef: req.params.id }).pluck('imageBlob').then((resultsArray) => {
-	// 	let results = resultsArray[0];
-	// 	const img = new Buffer(results.imageBlob.split(',')[1], 'base64');
-	// 	res.writeHead(200, {
-	// 		'Content-Type': 'image/png',
-	// 		'Content-Length': img.length
-	// 	});
-	// 	return res.end(img);
-	// }).catch(() => {
-	// 	return res.json({
-	// 		success: false
-	// 	})
-	// })
-	//
-	return res.json({ error: true, message: "disabled" })
+	
+	
+	r.table('results').getAll(req.params.id, { index: 'crossRef' }).limit(1).pluck('imageBlob').then((results) => {
+		
+		var img = Buffer.from(results[0].imageBlob.substring(21), 'base64');
+		
+		res.writeHead(200, {
+			'Content-Type': 'image/png',
+			'Content-Length': img.length
+		});
+		res.end(img);
+	}).catch((e) => {
+		console.log(e);
+		return res.json({
+			success: false
+		})
+	})
+
+	// return res.json({ error: true, message: "disabled" })
 })
 
 router.get('/task/:id', async function(req, res) {
+	
+	let page = 0;
+	
+	if(req.query.page !== null) page = parseInt(req.query.page)
+	
+	console.log(page);
 	
 	const taskId = await r.table('tasks').get(req.params.id).without('pageSource', 'imageBlob').then((results) => {
 		return results
 	})
 	
-	const parentTasks = await r.table('tasks').filter({ parentJob: req.params.id}).without('pageSource', 'imageBlob').then((results) => {
+	// Slice amounts
+	let slice1 = 0;
+	let slice2 = 20;
+	
+	if(page > 0) {
+		slice1 = 20 * page;
+		slice2 = 20 * page + 20;
+	}
+	
+	const parentTasks = await r.table('tasks').filter({ parentJob: req.params.id}).slice(slice1, slice2).without('pageSource', 'imageBlob').then((results) => {
 		return results
 	})
 	
@@ -47,7 +66,7 @@ router.get('/task/:id', async function(req, res) {
 
 router.get('/list', function(req, res) {
 	
-	r.table('tasks').filter(r.row.hasFields('parentJob').not()).without('pageSource', 'imageBlob').then((results) => {
+	r.table('tasks').filter(r.row.hasFields('parentJob').not()).limit(20).without('pageSource', 'imageBlob').then((results) => {
 		return res.json({
 			success: true,
 			tasks: results
